@@ -56,9 +56,13 @@ def sort_contours_by_area(contours: np.ndarray, descending: bool = True) -> np.n
     return contours
 
 
-def filter_contours_by_area(contours: np.ndarray, min_area: float = 0, max_area: float = np.inf) -> np.ndarray:
+def filter_contours_by_area(
+    contours: List[np.ndarray],
+    min_area: float = 0,
+    max_area: float = np.inf
+) -> List[np.ndarray]:
     if len(contours) == 0:
-        return np.array([])
+        return []
 
     def _keep_contour(c):
         area = cv2.contourArea(c)
@@ -68,7 +72,7 @@ def filter_contours_by_area(contours: np.ndarray, min_area: float = 0, max_area:
             return False
         return True
 
-    return np.array(list(filter(_keep_contour, contours)))
+    return list(filter(_keep_contour, contours))
 
 
 def get_contour_centers(contours: np.ndarray) -> np.ndarray:
