@@ -10,7 +10,7 @@ from color_tracker.utils.tracker_object import TrackedObject
 
 
 class ColorTracker(object):
-    def __init__(self, max_nb_of_objects: int = None,
+    def __init__(self, max_nb_of_objects: int = 120,
                  max_nb_of_points: int = None, debug: bool = True):
         """
         :param max_nb_of_points: Maxmimum number of points for storing. If it is set
