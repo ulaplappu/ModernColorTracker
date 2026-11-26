@@ -19,6 +19,11 @@ class ColorTracker(object):
         """
 
         super().__init__()
+        if max_nb_of_objects is None:
+            max_nb_of_objects = 5
+
+        if max_nb_of_objects <= 0:
+            raise ValueError("max_nb_of_objects must be positive")
         self._debug = debug
         self._max_nb_of_objects = max_nb_of_objects
         self._max_nb_of_points = max_nb_of_points
