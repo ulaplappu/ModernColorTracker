@@ -1,3 +1,5 @@
+from typing import List, Tuple
+
 import cv2
 import numpy as np
 
@@ -10,14 +12,14 @@ class HSVColorRangeDetector:
     Just a helper to determine what kind of lower and upper HSV values you need for the tracking
     """
 
-    def __init__(self, camera: Camera):
+    def __init__(self, camera: Camera) -> None:
         self._camera = camera
-        self._trackbars = []
+        self._trackbars: List[_Trackbar] = []
         self._main_window_name = "HSV color range detector"
         cv2.namedWindow(self._main_window_name)
         self._init_trackbars()
 
-    def _init_trackbars(self):
+    def _init_trackbars(self) -> None:
         trackbars_window_name = "hsv settings"
         cv2.namedWindow(trackbars_window_name, cv2.WINDOW_NORMAL)
 
@@ -38,14 +40,23 @@ class HSVColorRangeDetector:
         self._trackbars = [h_min_trackbar, s_min_trackbar, v_min_trackbar, h_max_trackbar, s_max_trackbar,
                            v_max_trackbar, kernel_x, kernel_y]
 
-    def _get_trackbar_values(self):
+    def _get_trackbar_values(self) -> List[int]:
         values = []
         for t in self._trackbars:
             value = t.get_value()
             values.append(value)
         return values
 
-    def detect(self):
+    def detect(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        try:
+            return self._detect()
+        finally:
+            try:
+                self._camera.release()
+            finally:
+                cv2.destroyAllWindows()
+
+    def _detect(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         display_width = 360
         display_height = 240
 
@@ -56,10 +67,9 @@ class HSVColorRangeDetector:
         while True:
             ret, frame = self._camera.read()
 
-            if ret:
-                frame = cv2.flip(frame, 1)
-            else:
-                continue
+            if not ret or frame is None:
+                raise RuntimeError("There is no camera feed")
+            frame = cv2.flip(frame, 1)
 
             draw_image = frame.copy()
 
@@ -106,9 +116,6 @@ class HSVColorRangeDetector:
             if key == 27:
                 break
 
-        self._camera.release()
-        cv2.destroyAllWindows()
-
         upper_color = np.array([h_max, s_max, v_max])
         lower_color = np.array([h_min, s_min, v_min])
 
@@ -116,7 +123,13 @@ class HSVColorRangeDetector:
 
 
 class _Trackbar(object):
-    def __init__(self, name, parent_window_name, init_value=0, max_value=255):
+    def __init__(
+        self,
+        name: str,
+        parent_window_name: str,
+        init_value: int = 0,
+        max_value: int = 255,
+    ) -> None:
         self.parent_window_name = parent_window_name
         self.name = name
         self.init_value = init_value
@@ -124,6 +137,6 @@ class _Trackbar(object):
 
         cv2.createTrackbar(self.name, self.parent_window_name, self.init_value, self.max_value, lambda x: x)
 
-    def get_value(self):
+    def get_value(self) -> int:
         value = cv2.getTrackbarPos(self.name, self.parent_window_name)
         return value

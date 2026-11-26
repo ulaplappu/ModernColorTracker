@@ -1,0 +1,12 @@
+include MANIFEST.in
+include LICENSE
+include README.md
+include pyproject.toml
+include requirements.txt
+include requirements-lock.txt
+include requirements-build.txt
+include setup.py
+recursive-include color_tracker *.py
+recursive-include examples *.py
+recursive-include tests *.py
+recursive-include art *.gif

@@ -1,5 +1,5 @@
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/67f0a9e168b3457385f2f7fcd09a9afa)](https://www.codacy.com/app/vecseigabor.x/Color-Tracker?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=gaborvecsei/Color-Tracker&amp;utm_campaign=Badge_Grade)
-[![PyPI version](https://badge.fury.io/py/color-tracker.svg)](https://badge.fury.io/py/color-tracker)
+[![PyPI version](https://badge.fury.io/py/modern-color-tracker-ulaplappu.svg)](https://badge.fury.io/py/modern-color-tracker-ulaplappu)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3](https://img.shields.io/badge/Python-3-brightgreen.svg)](https://www.python.org/downloads/)
 [![DOI](https://zenodo.org/badge/101786270.svg)](https://zenodo.org/badge/latestdoi/101786270)
@@ -14,11 +14,11 @@ Easy to use **multi object tracking** package based on colors :art:
 ## Install
 
 ```
-pip install color-tracker
+pip install modern-color-tracker-ulaplappu
 ```
 
 ```
-pip install git+https://github.com/gaborvecsei/Color-Tracker.git
+pip install git+https://github.com/ulaplappu/ModernColorTracker.git
 ```
 
 ## Object Tracker
@@ -63,6 +63,14 @@ This script tracks the red-ish objects, if you'd like to track another color, th
         # Define your custom Lower and Upper HSV values
         tracker.track(cam, [155, 103, 82], [178, 255, 255], max_skipped_frames=24)
     ```
+
+Tracking is capped at 5 objects by default. Each tracked object's point history is capped at
+120 points by default to bound memory use.
+Pass `max_nb_of_points=None` to opt into unbounded history. Camera access occurs only when
+you explicitly start a `WebCamera` or run a camera-based example; automated tests use
+synthetic in-memory frames. Camera shutdown waits up to five seconds for capture to stop.
+If a capture is still blocked, `release()` raises and leaves the resource open so shutdown
+can be retried after the read returns.
 
 ## Color Range Detection
 

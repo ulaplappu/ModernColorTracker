@@ -1,13 +1,14 @@
 import colorsys
 import random
-from typing import Tuple
+from typing import List, Sequence, Tuple
 
 import cv2
+import numpy as np
 
 from color_tracker.utils.tracker_object import TrackedObject
 
 
-def random_colors(nb_of_colors: int, brightness: float = 1.0):
+def random_colors(nb_of_colors: int, brightness: float = 1.0) -> List[List[int]]:
     hsv = [(i / nb_of_colors, 1, brightness) for i in range(nb_of_colors)]
     colors = list(map(lambda c: colorsys.hsv_to_rgb(*c), hsv))
     # note: we need to use list here with values [0, 255] as python built in scalar types,
@@ -17,7 +18,11 @@ def random_colors(nb_of_colors: int, brightness: float = 1.0):
     return colors
 
 
-def draw_tracker_points(points, debug_image, color: Tuple[int, int, int] = (255, 255, 255)):
+def draw_tracker_points(
+    points: Sequence[Sequence[int]],
+    debug_image: np.ndarray,
+    color: Tuple[int, int, int] = (255, 255, 255),
+) -> np.ndarray:
     for i in range(1, len(points)):
         if points[i - 1] is None or points[i] is None:
             continue
@@ -29,7 +34,11 @@ def draw_tracker_points(points, debug_image, color: Tuple[int, int, int] = (255,
     return debug_image
 
 
-def draw_debug_frame_for_object(debug_frame, tracked_object: TrackedObject, color: Tuple[int, int, int] = (255, 255, 255)):
+def draw_debug_frame_for_object(
+    debug_frame: np.ndarray,
+    tracked_object: TrackedObject,
+    color: Tuple[int, int, int] = (255, 255, 255),
+) -> np.ndarray:
     # contour = tracked_object.last_object_contour
     bbox = tracked_object.last_bbox
     points = tracked_object.tracked_points

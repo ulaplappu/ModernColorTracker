@@ -11,28 +11,29 @@
 *****************************************************
 """
 
-from codecs import open
-from os import path
+from pathlib import Path
 
 from setuptools import setup, find_packages
 
 VERSION = '0.1.1'
 
-here = path.abspath(path.dirname(__file__))
+root = Path(__file__).resolve().parent
 
-with open(path.join(here, 'README.md'), encoding='utf-8') as f:
-    long_description = f.read()
+long_description = (root / 'README.md').read_text(encoding='utf-8')
 
-with open(path.join(here, 'requirements.txt')) as f:
-    requirements = f.read().splitlines()
+requirements = [
+    line.strip()
+    for line in (root / 'requirements.txt').read_text(encoding='utf-8').splitlines()
+    if line.strip() and not line.lstrip().startswith('#')
+]
 
 setup(
-    name='color_tracker',
+    name='modern-color-tracker-ulaplappu',
     version=VERSION,
     description='Easy to use color tracking package for object tracking based on colors',
     long_description=long_description,
     long_description_content_type='text/markdown',
-    url='https://github.com/gaborvecsei/Color-Tracker',
+    url='https://github.com/ulaplappu/ModernColorTracker',
     author='Gabor Vecsei',
     author_email='vecseigabor.x@gmail.com',
     license='MIT',
@@ -43,7 +44,8 @@ setup(
         'Topic :: Education',
         'Topic :: Software Development',
         'License :: OSI Approved :: MIT License',
-        'Programming Language :: Python :: 3'],
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.13'],
     keywords='color tracker vecsei gaborvecsei color_tracker',
     install_requires=requirements,
     packages=find_packages(),

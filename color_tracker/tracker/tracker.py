@@ -1,20 +1,27 @@
 import warnings
-from typing import Union, List, Callable
+from typing import Callable, List, Optional, Tuple, Union
 
 import cv2
 import numpy as np
 
 from color_tracker.utils import helpers, visualize
 from color_tracker.utils.camera import Camera
-from color_tracker.utils.tracker_object import TrackedObject
+from color_tracker.utils.tracker_object import (
+    DEFAULT_MAX_NB_OF_POINTS,
+    TrackedObject,
+)
 
 
 class ColorTracker(object):
-    def __init__(self, max_nb_of_objects: int = 120,
-                 max_nb_of_points: int = None, debug: bool = True):
+    def __init__(
+        self,
+        max_nb_of_objects: Optional[int] = 5,
+        max_nb_of_points: Optional[int] = DEFAULT_MAX_NB_OF_POINTS,
+        debug: bool = True,
+    ) -> None:
         """
-        :param max_nb_of_points: Maxmimum number of points for storing. If it is set
-        to None than it means there is no limit
+        :param max_nb_of_objects: Maximum tracked objects. Defaults to 5.
+        :param max_nb_of_points: Maximum stored points per object. None is unbounded.
         :param debug: When it's true than we can see the visualization of the captured points etc...
         """
 
@@ -22,43 +29,55 @@ class ColorTracker(object):
         if max_nb_of_objects is None:
             max_nb_of_objects = 5
 
-        if max_nb_of_objects <= 0:
-            raise ValueError("max_nb_of_objects must be positive")
+        if (
+            not isinstance(max_nb_of_objects, int)
+            or isinstance(max_nb_of_objects, bool)
+            or max_nb_of_objects <= 0
+        ):
+            raise ValueError("max_nb_of_objects must be a positive integer")
+        if max_nb_of_points is not None and (
+            not isinstance(max_nb_of_points, int)
+            or isinstance(max_nb_of_points, bool)
+            or max_nb_of_points <= 0
+        ):
+            raise ValueError("max_nb_of_points must be a positive integer or None")
         self._debug = debug
         self._max_nb_of_objects = max_nb_of_objects
         self._max_nb_of_points = max_nb_of_points
         self._debug_colors = visualize.random_colors(max_nb_of_objects)
-        self._selection_points = None
+        self._selection_points: Optional[np.ndarray] = None
         self._is_running = False
-        self._frame = None
-        self._debug_frame = None
-        self._frame_preprocessor = None
+        self._frame: Optional[np.ndarray] = None
+        self._debug_frame: Optional[np.ndarray] = None
+        self._frame_preprocessor: Optional[Callable[[np.ndarray], np.ndarray]] = None
 
-        self._tracked_objects = []
+        self._tracked_objects: List[TrackedObject] = []
         self._tracked_object_id_count = 0
 
-        self._tracking_callback = None
+        self._tracking_callback: Optional[Callable[["ColorTracker"], None]] = None
 
     @property
     def tracked_objects(self) -> List[TrackedObject]:
         return self._tracked_objects
 
     @property
-    def frame(self):
+    def frame(self) -> Optional[np.ndarray]:
         return self._frame
 
     @property
-    def debug_frame(self):
+    def debug_frame(self) -> Optional[np.ndarray]:
         if self._debug:
             return self._debug_frame
         else:
             warnings.warn("Debugging is not enabled so there is no debug frame")
         return None
 
-    def set_frame_preprocessor(self, preprocessor_func):
+    def set_frame_preprocessor(
+        self, preprocessor_func: Optional[Callable[[np.ndarray], np.ndarray]]
+    ) -> None:
         self._frame_preprocessor = preprocessor_func
 
-    def set_court_points(self, court_points):
+    def set_court_points(self, court_points: Optional[np.ndarray]) -> None:
         """
         Set a set of points that crops out a convex polygon from the image.
         So only on the cropped part will be detection
@@ -67,10 +86,12 @@ class ColorTracker(object):
 
         self._selection_points = court_points
 
-    def set_tracking_callback(self, tracking_callback: Callable[["ColorTracker"], None]):
+    def set_tracking_callback(
+        self, tracking_callback: Optional[Callable[["ColorTracker"], None]]
+    ) -> None:
         self._tracking_callback = tracking_callback
 
-    def stop_tracking(self):
+    def stop_tracking(self) -> None:
         """
         Stop the color tracking
         """
@@ -78,27 +99,35 @@ class ColorTracker(object):
         self._is_running = False
 
     @staticmethod
-    def _read_from_camera(camera, horizontal_flip: bool) -> np.ndarray:
+    def _read_from_camera(
+        camera: Union[Camera, cv2.VideoCapture], horizontal_flip: bool
+    ) -> np.ndarray:
         ret, frame = camera.read()
 
-        if ret:
-            if horizontal_flip:
-                frame = cv2.flip(frame, 1)
-        else:
+        if not ret or frame is None:
             raise ValueError("There is no camera feed")
 
+        if horizontal_flip:
+            frame = cv2.flip(frame, 1)
         return frame
 
-    def _init_new_tracked_object(self, obj_center):
+    def _init_new_tracked_object(self, obj_center: Tuple[int, int]) -> None:
         tracked_obj = TrackedObject(self._tracked_object_id_count, self._max_nb_of_points)
         tracked_obj.add_point(obj_center)
         self._tracked_object_id_count += 1
         self._tracked_objects.append(tracked_obj)
 
-    def track(self, camera: Union[Camera, cv2.VideoCapture], hsv_lower_value: Union[np.ndarray, List[int]],
-              hsv_upper_value: Union[np.ndarray, List[int]], min_contour_area: Union[float, int] = 0,
-              kernel: np.ndarray = None, horizontal_flip: bool = True, max_track_point_distance: int = 100,
-              max_skipped_frames: int = 24):
+    def track(
+        self,
+        camera: Union[Camera, cv2.VideoCapture],
+        hsv_lower_value: Union[np.ndarray, List[int]],
+        hsv_upper_value: Union[np.ndarray, List[int]],
+        min_contour_area: Union[float, int] = 0,
+        kernel: Optional[np.ndarray] = None,
+        horizontal_flip: bool = True,
+        max_track_point_distance: int = 100,
+        max_skipped_frames: int = 24,
+    ) -> None:
         """
         With this we can start the tracking with the given parameters
         :param camera: Camera object which parent is a Camera object (like WebCamera)
@@ -111,77 +140,87 @@ class ColorTracker(object):
         :param kernel: structuring element to perform morphological operations on the mask image
         """
 
+        if max_track_point_distance < 0:
+            raise ValueError("max_track_point_distance must be non-negative")
+        if max_skipped_frames < 0:
+            raise ValueError("max_skipped_frames must be non-negative")
+
         self._is_running = True
+        try:
+            while self._is_running:
+                self._frame = self._read_from_camera(camera, horizontal_flip)
 
-        while True:
-            self._frame = self._read_from_camera(camera, horizontal_flip)
+                if self._frame_preprocessor is not None:
+                    self._frame = self._frame_preprocessor(self._frame)
 
-            if self._frame_preprocessor is not None:
-                self._frame = self._frame_preprocessor(self._frame)
+                if self._selection_points is not None and len(self._selection_points) > 0:
+                    self._frame = helpers.crop_out_polygon_convex(
+                        self._frame, self._selection_points
+                    )
 
-            if (self._selection_points is not None) and (len(self._selection_points) > 0):
-                self._frame = helpers.crop_out_polygon_convex(self._frame, self._selection_points)
-
-            contours = helpers.find_object_contours(image=self._frame,
-                                                    hsv_lower_value=hsv_lower_value,
-                                                    hsv_upper_value=hsv_upper_value,
-                                                    kernel=kernel)
-
-            contours = helpers.filter_contours_by_area(contours, min_contour_area)
-            contours = helpers.sort_contours_by_area(contours)
-            if self._max_nb_of_objects is not None and self._max_nb_of_objects > 0:
+                contours = helpers.find_object_contours(
+                    image=self._frame,
+                    hsv_lower_value=hsv_lower_value,
+                    hsv_upper_value=hsv_upper_value,
+                    kernel=kernel,
+                )
+                contours = helpers.filter_contours_by_area(contours, min_contour_area)
+                contours = helpers.sort_contours_by_area(contours)
                 contours = contours[:self._max_nb_of_objects]
-            bboxes = helpers.get_bbox_for_contours(contours)
-            object_centers = helpers.get_contour_centers(contours)
+                bboxes = helpers.get_bbox_for_contours(contours)
+                object_centers = helpers.get_contour_centers(contours)
 
-            # Init the list of tracked objects if it's empty
-            if len(self._tracked_objects) == 0:
-                for obj_center in object_centers:
-                    self._init_new_tracked_object(obj_center)
+                cost_mtx = helpers.calculate_distance_mtx(
+                    self._tracked_objects, object_centers
+                )
+                assignment = helpers.solve_assignment(cost_mtx)
+                matched_detections = set()
 
-            # Constructing cost matrix (matrix with the distances from points to other points)
-            cost_mtx = helpers.calculate_distance_mtx(self._tracked_objects, object_centers)
+                for object_index, detection_index in enumerate(assignment):
+                    tracked_object = self._tracked_objects[object_index]
+                    if (
+                        detection_index == -1
+                        or cost_mtx[object_index][detection_index]
+                        > max_track_point_distance
+                    ):
+                        assignment[object_index] = -1
+                        tracked_object.skipped_frames += 1
+                        continue
 
-            # Solve assignment problem
-            assignment = helpers.solve_assignment(cost_mtx)
+                    tracked_object.skipped_frames = 0
+                    tracked_object.add_point(object_centers[detection_index])
+                    tracked_object.last_object_contour = contours[detection_index]
+                    tracked_object.last_bbox = tuple(
+                        int(value) for value in bboxes[detection_index]
+                    )
+                    matched_detections.add(detection_index)
 
-            # Refine assignment list and objects's skipped frames
-            for i in range(len(assignment)):
-                if assignment[i] != -1:
-                    if cost_mtx[i][assignment[i]] > max_track_point_distance:
-                        assignment[i] = -1
-                else:
-                    self._tracked_objects[i].skipped_frames += 1
+                helpers.remove_object_if_too_many_frames_skipped(
+                    self._tracked_objects, assignment, max_skipped_frames
+                )
 
-            # Remove tracked object if the object skipped to many frames, so it was not detected
-            helpers.remove_object_if_too_many_frames_skipped(self._tracked_objects, assignment, max_skipped_frames)
+                for detection_index, center in enumerate(object_centers):
+                    if detection_index in matched_detections:
+                        continue
+                    if len(self._tracked_objects) >= self._max_nb_of_objects:
+                        break
+                    self._init_new_tracked_object(center)
+                    tracked_object = self._tracked_objects[-1]
+                    tracked_object.last_object_contour = contours[detection_index]
+                    tracked_object.last_bbox = tuple(
+                        int(value) for value in bboxes[detection_index]
+                    )
 
-            # Check for new objects and initialize them
-            un_assigned_detections = [i for i in range(len(object_centers)) if i not in assignment]
-            if len(un_assigned_detections) != 0:
-                if len(self._tracked_objects) < self._max_nb_of_objects:
-                    for i in un_assigned_detections:
-                        self._init_new_tracked_object(object_centers[i])
+                if self._debug:
+                    self._debug_frame = self._frame.copy()
+                    for index, tracked_object in enumerate(self._tracked_objects):
+                        self._debug_frame = visualize.draw_debug_frame_for_object(
+                            self._debug_frame,
+                            tracked_object,
+                            self._debug_colors[index],
+                        )
 
-            # Refresh tracked objects (reset "skipped frames" counter and add new object center to the queue)
-            for i in range(len(assignment)):
-                if assignment[i] != -1:
-                    self._tracked_objects[i].skipped_frames = 0
-                    self._tracked_objects[i].add_point(object_centers[assignment[i]])
-
-                    if len(contours) > i:
-                        self._tracked_objects[i].last_object_contour = contours[i]
-                        self._tracked_objects[i].last_bbox = bboxes[i]
-
-            if self._debug:
-                self._debug_frame = self._frame.copy()
-                for i, tracked_obj in enumerate(self._tracked_objects):
-                    self._debug_frame = visualize.draw_debug_frame_for_object(self._debug_frame,
-                                                                              tracked_obj,
-                                                                              self._debug_colors[i])
-
-            if self._tracking_callback is not None:
-                self._tracking_callback(self)
-
-            if not self._is_running:
-                break
+                if self._tracking_callback is not None:
+                    self._tracking_callback(self)
+        finally:
+            self._is_running = False
